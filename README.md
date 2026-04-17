@@ -13,7 +13,8 @@
 ### 대시보드 + GUI 클라이언트 동시 실행
 
 [![실행화면](image/실행화면.png)](image/실행화면.png)
-
+[![실행화면](image/server.png)](image/server.png)
+[![실행화면](image/client.png)](image/client.png)
 왼쪽: 웹 대시보드(`localhost:8888`) — 서버 상태·요청 통계·최근 히스토리 실시간 확인  
 오른쪽: GUI 클라이언트 — ① 명령 입력 / ② 결과 복사 / ③ 실행 결과 3-패널 구성
 

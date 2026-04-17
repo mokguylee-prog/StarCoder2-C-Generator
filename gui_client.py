@@ -6,37 +6,114 @@ import subprocess
 import webbrowser
 import os
 import re
+import json
 
 API_URL = "http://localhost:8888"
 
-DARK_BG   = "#0d1117"
-PANEL_BG  = "#161b22"
-BORDER    = "#30363d"
-TEXT      = "#c9d1d9"
-BLUE      = "#58a6ff"
-GREEN     = "#3fb950"
-MUTED     = "#6e7681"
-INPUT_BG  = "#21262d"
-RED       = "#f85149"
-CODE_FG   = "#79c0ff"
+DARK_BG  = "#0d1117"
+PANEL_BG = "#161b22"
+BORDER   = "#30363d"
+TEXT     = "#c9d1d9"
+BLUE     = "#58a6ff"
+GREEN    = "#3fb950"
+MUTED    = "#6e7681"
+INPUT_BG = "#21262d"
+RED      = "#f85149"
+CODE_FG  = "#79c0ff"
+
+# 레이아웃 설정 파일 (스크립트 옆에 저장)
+LAYOUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui_layout.json")
+
+# 기본 레이아웃: 응답창 크게(65%), 입력창 작게(35%), 상단 75% / 하단 25%
+DEFAULT_LAYOUT = {
+    "geometry": "1280x840",
+    "v_ratio":  0.75,   # 상하 분할 — 상단 비율
+    "h_ratio":  0.35,   # 좌우 분할 — 입력(좌) 비율
+}
 
 
 class StarCoderGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("월평동이상목 StarCoder3")
-        self.root.geometry("1280x840")
         self.root.configure(bg=DARK_BG)
         self.root.minsize(900, 640)
 
-        self.history   = []
+        self.history     = []
         self.temperature = tk.DoubleVar(value=0.2)
         self.max_tokens  = tk.IntVar(value=1024)
         self._sending    = False
+        self._layout     = self._load_layout()
+
+        # 저장된(또는 기본) 창 크기 적용
+        self.root.geometry(self._layout["geometry"])
 
         self._build_toolbar()
         self._build_main()
         self._check_server()
+
+        # 창 크기/위치 변경 시 저장
+        self.root.bind("<Configure>", self._on_configure)
+
+    # ──────────────────────────────────────────
+    # 레이아웃 저장 / 불러오기
+    # ──────────────────────────────────────────
+    def _load_layout(self) -> dict:
+        try:
+            with open(LAYOUT_FILE, encoding="utf-8") as f:
+                data = json.load(f)
+            # 필수 키 없으면 기본값으로 보완
+            for k, v in DEFAULT_LAYOUT.items():
+                data.setdefault(k, v)
+            return data
+        except Exception:
+            return dict(DEFAULT_LAYOUT)
+
+    def _save_layout(self):
+        try:
+            self._layout["geometry"] = self.root.winfo_geometry()
+            with open(LAYOUT_FILE, "w", encoding="utf-8") as f:
+                json.dump(self._layout, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    def _on_configure(self, event):
+        # 루트 창 이벤트만 처리 (자식 위젯 Configure 무시)
+        if event.widget is self.root:
+            self._save_layout()
+
+    # sash 드래그 끝났을 때 비율 저장
+    def _on_v_sash(self, event):
+        try:
+            total = self._outer.winfo_height()
+            if total > 10:
+                pos = self._outer.sash_coord(0)[1]
+                self._layout["v_ratio"] = pos / total
+                self._save_layout()
+        except Exception:
+            pass
+
+    def _on_h_sash(self, event):
+        try:
+            total = self._top_pane.winfo_width()
+            if total > 10:
+                pos = self._top_pane.sash_coord(0)[0]
+                self._layout["h_ratio"] = pos / total
+                self._save_layout()
+        except Exception:
+            pass
+
+    # 창 렌더 완료 후 sash 위치 적용
+    def _apply_sash(self):
+        self.root.update_idletasks()
+
+        v_total = self._outer.winfo_height()
+        if v_total > 10:
+            self._outer.sash_place(0, 0, int(v_total * self._layout["v_ratio"]))
+
+        h_total = self._top_pane.winfo_width()
+        if h_total > 10:
+            self._top_pane.sash_place(0, int(h_total * self._layout["h_ratio"]), 0)
 
     # ──────────────────────────────────────────
     # Toolbar
@@ -46,7 +123,7 @@ class StarCoderGUI:
                        relief=tk.FLAT, bd=0)
         bar.pack(fill=tk.X)
 
-        # ── 왼쪽: 상태 표시 ──
+        # 왼쪽: 상태
         self.dot = tk.Label(bar, text="●", fg=GREEN, bg=PANEL_BG,
                             font=("Segoe UI", 13))
         self.dot.pack(side=tk.LEFT, padx=(0, 5))
@@ -56,24 +133,23 @@ class StarCoderGUI:
                                    font=("Segoe UI", 9))
         self.status_lbl.pack(side=tk.LEFT, padx=(0, 12))
 
-        # ── 서버 제어 버튼 (상태 표시 바로 오른쪽) ──
+        # 서버 제어 버튼
         tk.Button(bar, text="▶ 서버 시작", command=self._server_start,
                   bg="#1f4d2e", fg=GREEN, relief=tk.FLAT,
                   font=("Segoe UI", 9), padx=10, pady=3,
                   cursor="hand2").pack(side=tk.LEFT, padx=(0, 4))
 
-        self.stop_btn = tk.Button(bar, text="■ 서버 정지", command=self._server_stop,
+        tk.Button(bar, text="■ 서버 정지", command=self._server_stop,
                   bg="#4d1f1f", fg=RED, relief=tk.FLAT,
                   font=("Segoe UI", 9), padx=10, pady=3,
-                  cursor="hand2")
-        self.stop_btn.pack(side=tk.LEFT, padx=(0, 4))
+                  cursor="hand2").pack(side=tk.LEFT, padx=(0, 4))
 
         tk.Button(bar, text="⬡ 대시보드", command=self._open_dashboard,
                   bg=INPUT_BG, fg=BLUE, relief=tk.FLAT,
                   font=("Segoe UI", 9), padx=10, pady=3,
                   cursor="hand2").pack(side=tk.LEFT, padx=(0, 4))
 
-        # ── 오른쪽: 파라미터 + 초기화 ──
+        # 오른쪽: 파라미터 + 초기화
         tk.Button(bar, text="대화 초기화", command=self._clear_history,
                   bg=INPUT_BG, fg=MUTED, relief=tk.FLAT,
                   font=("Segoe UI", 9), padx=10, pady=3,
@@ -103,31 +179,26 @@ class StarCoderGUI:
                                      bg=BORDER, sashwidth=5,
                                      sashrelief=tk.FLAT, bd=0)
         self._outer.pack(fill=tk.BOTH, expand=True)
+        self._outer.bind("<ButtonRelease-1>", self._on_v_sash)
 
-        # ── 상단: 입력 + 복사 (좌우 분할) ──
-        top_pane = tk.PanedWindow(self._outer, orient=tk.HORIZONTAL,
-                                  bg=BORDER, sashwidth=5,
-                                  sashrelief=tk.FLAT, bd=0)
-        self._outer.add(top_pane, minsize=200)
+        self._top_pane = tk.PanedWindow(self._outer, orient=tk.HORIZONTAL,
+                                        bg=BORDER, sashwidth=5,
+                                        sashrelief=tk.FLAT, bd=0)
+        self._outer.add(self._top_pane, minsize=200)
+        self._top_pane.bind("<ButtonRelease-1>", self._on_h_sash)
 
-        self._build_input_panel(top_pane)
-        self._build_copy_panel(top_pane)
+        self._build_input_panel(self._top_pane)
+        self._build_copy_panel(self._top_pane)
 
-        # ── 하단: 실행 결과 ──
         self._build_result_panel(self._outer)
 
-        # 상단 80% / 하단 20% 비율로 초기 sash 위치 설정
-        self.root.after(150, self._set_sash)
-
-    def _set_sash(self):
-        total = self._outer.winfo_height()
-        if total > 10:
-            self._outer.sash_place(0, 0, int(total * 0.80))
+        # 렌더 완료 후 sash 비율 적용
+        self.root.after(200, self._apply_sash)
 
     # ── Panel 1: 명령 입력 ──────────────────
     def _build_input_panel(self, parent):
         frame = tk.Frame(parent, bg=PANEL_BG)
-        parent.add(frame, minsize=340)
+        parent.add(frame, minsize=200)
 
         self._section_label(frame, "① 명령 입력")
 
@@ -139,7 +210,6 @@ class StarCoderGUI:
         self.input_box.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 6))
         self.input_box.bind("<Control-Return>", lambda e: self._send())
 
-        # 버튼 행
         btn_row = tk.Frame(frame, bg=PANEL_BG, pady=6, padx=8)
         btn_row.pack(fill=tk.X)
 
@@ -163,10 +233,10 @@ class StarCoderGUI:
                                  font=("Segoe UI", 9))
         self.turn_lbl.pack(side=tk.RIGHT)
 
-    # ── Panel 2: 결과 복사 ─────────────────
+    # ── Panel 2: 응답 ─────────────────────
     def _build_copy_panel(self, parent):
         frame = tk.Frame(parent, bg=PANEL_BG)
-        parent.add(frame, minsize=280)
+        parent.add(frame, minsize=300)
 
         hdr = tk.Frame(frame, bg=PANEL_BG)
         hdr.pack(fill=tk.X, padx=8)
@@ -182,9 +252,8 @@ class StarCoderGUI:
 
         self.copy_hint = tk.Label(
             frame,
-            text="코드 블록(``` ```)이 자동 추출됩니다.\n없으면 전체 응답이 표시됩니다.",
+            text="코드 블록(``` ```)이 자동 추출됩니다.  없으면 전체 응답이 표시됩니다.",
             fg=MUTED, bg=PANEL_BG, font=("Segoe UI", 8),
-            justify=tk.LEFT,
         )
         self.copy_hint.pack(anchor=tk.W, padx=10, pady=(0, 4))
 
@@ -348,12 +417,10 @@ class StarCoderGUI:
     def _set_online(self, online, model):
         if online:
             self.dot.config(fg=GREEN)
-            self.status_lbl.config(fg=MUTED,
-                                   text=f"온라인  │  {model}")
+            self.status_lbl.config(fg=MUTED, text=f"온라인  │  {model}")
         else:
             self.dot.config(fg=RED)
-            self.status_lbl.config(fg=RED,
-                                   text="서버 오프라인 — localhost:8888")
+            self.status_lbl.config(fg=RED, text="서버 오프라인 — localhost:8888")
 
 
 if __name__ == "__main__":

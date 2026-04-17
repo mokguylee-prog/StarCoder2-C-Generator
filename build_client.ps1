@@ -134,6 +134,8 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host ""
     Write-Host "[주의] exe 실행 전 api_server(서버)가 먼저 구동되어 있어야 합니다."
     Write-Host ""
+    Write-Host "StarCoder3Client.exe 실행 중..."
+    Start-Process "$PSScriptRoot\StarCoder3Client.exe"
 } else {
     Write-Host ""
     Write-Host "[오류] 빌드 실패. 위 로그를 확인하세요."
