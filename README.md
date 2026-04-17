@@ -12,6 +12,7 @@
 
 ### 대시보드 + GUI 클라이언트 동시 실행
 
+[![실행화면](image/사용방법.png)](image/사용방법.png)
 [![실행화면](image/실행화면.png)](image/실행화면.png)
 [![실행화면](image/server.png)](image/server.png)
 [![실행화면](image/client.png)](image/client.png)
