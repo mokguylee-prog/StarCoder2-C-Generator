@@ -20,6 +20,7 @@ build/
 dist/
 *.spec
 *.exe
+!StarCoder3Client.exe
 
 # ── 로그 / 런타임 파일 ────────────────────
 *.log
