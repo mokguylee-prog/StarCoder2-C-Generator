@@ -20,7 +20,7 @@ except ImportError as e:
 # ── 설정 ──────────────────────────────────────────
 MODEL_DIR = "D:/StarCoder3/models/gguf"
 LOG_DIR   = "logs"
-LOG_FILE  = os.path.join(LOG_DIR, "requests.log")
+LOG_FILE  = os.path.join(LOG_DIR, f"requests_{datetime.now().strftime('%Y%m%d%H%M%S')}.log")
 PORT = 8888
 N_CTX = 4096
 N_THREADS = 8
