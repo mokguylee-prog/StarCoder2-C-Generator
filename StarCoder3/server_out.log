@@ -1,0 +1,2 @@
+설치 필요: pip install llama-cpp-python fastapi uvicorn
+No module named 'llama_cpp'
