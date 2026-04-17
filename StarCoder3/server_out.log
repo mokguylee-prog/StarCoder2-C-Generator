@@ -1,2 +1,6 @@
-ì„¤ì¹˜ í•„ìš”: pip install llama-cpp-python fastapi uvicorn
-No module named 'llama_cpp'
+StarCoder3 API ¼­¹ö ½ÃÀÛ: http://localhost:8888
+ÀÚ¿¬¾î·Î ÄÚµå¸¦ ¿äÃ»ÇÏ¼¼¿ä (instruction-following ¸ðµå)
+¸ðµ¨ ·Îµù: qwen2.5-coder-7b-instruct-q4_k_m.gguf
+¼­¹ö ÁØºñ ¿Ï·á
+INFO:     127.0.0.1:52491 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52500 - "GET /health HTTP/1.1" 200 OK
