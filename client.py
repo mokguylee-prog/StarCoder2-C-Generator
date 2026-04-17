@@ -1,6 +1,5 @@
-"""StarCoder2 CLI 클라이언트"""
+"""StarCoder2 대화형 클라이언트 — python client.py 로 바로 시작"""
 import sys
-import json
 
 try:
     import requests
@@ -10,189 +9,157 @@ except ImportError:
 
 SERVER = "http://localhost:8888"
 
-HELP = """
-StarCoder2 클라이언트
-=====================
-사용법:
-  python client.py generate   # 대화형 코드 완성
-  python client.py fim        # 코드 중간 채우기
-  python client.py health     # 서버 상태 확인
-  python client.py demo       # 동작 확인 데모 실행
+BANNER = """
+╔══════════════════════════════════════════╗
+║        StarCoder2  C 코드 생성기          ║
+║  서버: http://localhost:8888              ║
+╠══════════════════════════════════════════╣
+║  부분 C 코드 입력 → 빈 줄로 전송          ║
+║  :fim   FIM 모드 (중간 채우기)            ║
+║  :gen   일반 생성 모드 (기본)             ║
+║  :help  도움말                           ║
+║  :quit  종료  (또는 Ctrl+C)              ║
+╚══════════════════════════════════════════╝
+"""
+
+HELP = """명령어:
+  :gen   일반 코드 완성 모드 (기본)
+  :fim   FIM 모드 — 앞/뒤 코드를 주면 중간을 채워줌
+  :help  이 도움말
+  :quit  종료
+
+입력 방법:
+  - C 코드를 여러 줄 입력한 뒤 빈 줄(Enter)로 전송
+  - :fim 모드에서는 prefix → 빈 줄 → suffix → 빈 줄 순으로 입력
 """
 
 
-def check_health():
+def call_generate(prompt: str) -> None:
+    r = requests.post(f"{SERVER}/generate", json={"prompt": prompt}, timeout=120)
+    r.raise_for_status()
+    data = r.json()
+    print("\n" + "─" * 52)
+    print(data["generated"])
+    print("─" * 52)
+    print(f"[생성 토큰: {data['tokens_generated']}]\n")
+
+
+def call_fim(prefix: str, suffix: str) -> None:
+    r = requests.post(f"{SERVER}/fim", json={"prefix": prefix, "suffix": suffix}, timeout=120)
+    r.raise_for_status()
+    data = r.json()
+    print("\n" + "─" * 52)
+    print("[채워진 중간 코드]")
+    print(data["generated"])
+    print("─" * 52)
+    print(f"[생성 토큰: {data['tokens_generated']}]\n")
+
+
+def read_block(prompt_label: str) -> str:
+    """빈 줄이 나올 때까지 여러 줄 입력을 받아 하나의 문자열로 반환."""
+    print(prompt_label)
+    lines = []
+    while True:
+        try:
+            line = input()
+        except EOFError:
+            break
+        if line == "":
+            break
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def check_server() -> bool:
     try:
         r = requests.get(f"{SERVER}/health", timeout=5)
         r.raise_for_status()
-        data = r.json()
-        print(f"서버 정상 — 모델: {data['model']}")
+        model = r.json().get("model", "")
+        print(f"서버 연결 확인 — 모델: {model}\n")
         return True
     except requests.ConnectionError:
-        print(f"서버 연결 실패: {SERVER}")
-        print("먼저 실행하세요: python server.py")
-        return False
-    except Exception as e:
-        print(f"오류: {e}")
+        print(f"[오류] 서버에 연결할 수 없습니다: {SERVER}")
+        print("먼저 실행하세요: .\\start_server.ps1\n")
         return False
 
 
-def cmd_generate():
-    print("=== 코드 완성 모드 ===")
-    print("부분 C 코드를 입력하세요. 빈 줄 두 번 입력하면 전송됩니다.")
-    print("종료: Ctrl+C\n")
+def main():
+    print(BANNER)
+
+    if not check_server():
+        sys.exit(1)
+
+    mode = "gen"  # 현재 모드: "gen" 또는 "fim"
 
     while True:
         try:
-            lines = []
-            empty_count = 0
-            while True:
-                line = input()
-                if line == "":
-                    empty_count += 1
-                    if empty_count >= 2:
-                        break
-                else:
-                    empty_count = 0
-                lines.append(line)
-
-            prompt = "\n".join(lines).strip()
-            if not prompt:
-                continue
-
-            print("\n생성 중...\n")
-            r = requests.post(f"{SERVER}/generate", json={"prompt": prompt}, timeout=120)
-            r.raise_for_status()
-            data = r.json()
-            print("─" * 50)
-            print(data["generated"])
-            print(f"─" * 50)
-            print(f"[생성 토큰: {data['tokens_generated']}]\n")
-
-        except KeyboardInterrupt:
-            print("\n종료")
-            break
-        except requests.ConnectionError:
-            print("서버 연결 끊김")
+            mode_tag = "[GEN]" if mode == "gen" else "[FIM]"
+            line = input(f"{mode_tag} >>> ").strip()
+        except (KeyboardInterrupt, EOFError):
+            print("\n종료합니다.")
             break
 
+        if not line:
+            continue
 
-def cmd_fim():
-    print("=== FIM 모드 (코드 중간 채우기) ===\n")
-    try:
-        print("앞부분 코드 (빈 줄 두 번으로 완료):")
-        prefix_lines = []
-        empty = 0
-        while True:
-            line = input()
-            if line == "":
-                empty += 1
-                if empty >= 2:
-                    break
-            else:
-                empty = 0
-            prefix_lines.append(line)
+        # ── 명령어 처리 ──────────────────────────────
+        if line == ":quit":
+            print("종료합니다.")
+            break
+        elif line == ":help":
+            print(HELP)
+            continue
+        elif line == ":gen":
+            mode = "gen"
+            print("모드 변경: 일반 코드 완성\n")
+            continue
+        elif line == ":fim":
+            mode = "fim"
+            print("모드 변경: FIM (코드 중간 채우기)\n")
+            continue
 
-        print("\n뒷부분 코드 (빈 줄 두 번으로 완료):")
-        suffix_lines = []
-        empty = 0
-        while True:
-            line = input()
-            if line == "":
-                empty += 1
-                if empty >= 2:
-                    break
-            else:
-                empty = 0
-            suffix_lines.append(line)
-
-        prefix = "\n".join(prefix_lines).strip()
-        suffix = "\n".join(suffix_lines).strip()
-
-        print("\n생성 중...\n")
-        r = requests.post(f"{SERVER}/fim", json={"prefix": prefix, "suffix": suffix}, timeout=120)
-        r.raise_for_status()
-        data = r.json()
-        print("─" * 50)
-        print("[채워진 중간 코드]")
-        print(data["generated"])
-        print("─" * 50)
-        print(f"[생성 토큰: {data['tokens_generated']}]")
-
-    except KeyboardInterrupt:
-        print("\n취소")
-
-
-def cmd_demo():
-    """동작 확인용 데모 — 서버가 실행 중인지, 코드가 잘 생성되는지 확인"""
-    print("=== 동작 확인 데모 ===\n")
-
-    if not check_health():
-        return
-
-    tests = [
-        {
-            "name": "/generate — 팩토리얼",
-            "endpoint": "/generate",
-            "payload": {
-                "prompt": "// Recursive factorial\nint factorial(int n) {\n    if (n <= 1)\n        return 1;\n",
-                "max_tokens": 80,
-            },
-        },
-        {
-            "name": "/generate — 버블 정렬",
-            "endpoint": "/generate",
-            "payload": {
-                "prompt": "void bubble_sort(int arr[], int n) {\n    for (int i = 0; i < n - 1; i++) {\n",
-                "max_tokens": 120,
-            },
-        },
-        {
-            "name": "/fim — 배열 정렬 중간 채우기",
-            "endpoint": "/fim",
-            "payload": {
-                "prefix": "int main() {\n    int arr[] = {5, 3, 1, 4, 2};\n    int n = 5;\n    // sort arr\n",
-                "suffix": "    printf(\"%d\\n\", arr[0]);\n    return 0;\n}",
-                "max_tokens": 80,
-            },
-        },
-    ]
-
-    passed = 0
-    for t in tests:
-        print(f"[테스트] {t['name']}")
+        # ── 코드 입력 처리 ────────────────────────────
         try:
-            r = requests.post(f"{SERVER}{t['endpoint']}", json=t["payload"], timeout=120)
-            r.raise_for_status()
-            data = r.json()
-            print(f"  생성 토큰: {data['tokens_generated']}")
-            preview = data["generated"].replace("\n", " ")[:80]
-            print(f"  결과 미리보기: {preview}...")
-            print(f"  결과: PASS\n")
-            passed += 1
-        except Exception as e:
-            print(f"  결과: FAIL — {e}\n")
+            if mode == "gen":
+                # 첫 줄은 이미 입력받았으므로 이어서 나머지 줄 수집
+                print("(계속 입력 → 빈 줄로 전송)")
+                rest_lines = []
+                while True:
+                    try:
+                        l = input()
+                    except EOFError:
+                        break
+                    if l == "":
+                        break
+                    rest_lines.append(l)
+                prompt = line + ("\n" + "\n".join(rest_lines) if rest_lines else "")
+                print("생성 중...")
+                call_generate(prompt)
 
-    print(f"{'=' * 40}")
-    print(f"결과: {passed}/{len(tests)} 통과")
-    if passed == len(tests):
-        print("서버 + 클라이언트 정상 동작 확인!")
-    else:
-        print("일부 테스트 실패. 서버 로그를 확인하세요.")
+            else:  # fim
+                # 첫 줄 입력이 prefix 시작
+                print("(prefix 계속 입력 → 빈 줄로 완료)")
+                prefix_lines = [line]
+                while True:
+                    try:
+                        l = input()
+                    except EOFError:
+                        break
+                    if l == "":
+                        break
+                    prefix_lines.append(l)
+
+                suffix = read_block("suffix 입력 (뒷부분 코드, 빈 줄로 완료):")
+                print("생성 중...")
+                call_fim("\n".join(prefix_lines), suffix)
+
+        except requests.ConnectionError:
+            print("[오류] 서버 연결이 끊겼습니다. 서버 상태를 확인하세요.\n")
+        except requests.HTTPError as e:
+            print(f"[오류] 서버 응답 오류: {e}\n")
+        except Exception as e:
+            print(f"[오류] {e}\n")
 
 
 if __name__ == "__main__":
-    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-
-    if cmd == "generate":
-        if check_health():
-            cmd_generate()
-    elif cmd == "fim":
-        if check_health():
-            cmd_fim()
-    elif cmd == "health":
-        check_health()
-    elif cmd == "demo":
-        cmd_demo()
-    else:
-        print(HELP)
+    main()

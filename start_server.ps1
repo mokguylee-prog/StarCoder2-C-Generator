@@ -4,7 +4,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $VENV     = "D:\StarCoder2\venv\Scripts\python.exe"
 $SCRIPT   = "$PSScriptRoot\server.py"
-$LOG      = "$PSScriptRoot\server.log"
+$LOG_OUT  = "$PSScriptRoot\server_out.log"
+$LOG_ERR  = "$PSScriptRoot\server_err.log"
 $PID_FILE = "$PSScriptRoot\server.pid"
 
 # 이미 실행 중인지 확인
@@ -18,15 +19,18 @@ if (Test-Path $PID_FILE) {
     Remove-Item $PID_FILE
 }
 
-# 백그라운드 실행 (cmd /c 로 stdout+stderr 단일 파일에 합산)
-$proc = Start-Process -FilePath "cmd.exe" `
-    -ArgumentList "/c `"$VENV`" `"$SCRIPT`" >> `"$LOG`" 2>&1" `
+# 백그라운드 실행
+$proc = Start-Process -FilePath $VENV `
+    -ArgumentList $SCRIPT `
+    -RedirectStandardOutput $LOG_OUT `
+    -RedirectStandardError  $LOG_ERR `
     -WindowStyle Hidden `
     -PassThru
 
 $proc.Id | Out-File $PID_FILE -Encoding utf8
 Write-Host "서버 시작 (PID: $($proc.Id))"
-Write-Host "로그:  $LOG"
+Write-Host "로그(출력): $LOG_OUT"
+Write-Host "로그(오류): $LOG_ERR"
 Write-Host "중지:  .\stop_server.ps1"
 Write-Host ""
 
