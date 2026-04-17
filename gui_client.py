@@ -20,6 +20,13 @@ MUTED    = "#6e7681"
 INPUT_BG = "#21262d"
 RED      = "#f85149"
 CODE_FG  = "#79c0ff"
+USER_HEADER_BG = "#1f4d2e"
+AI_HEADER_BG   = "#0d3818"
+CODE_HEADER_BG = "#21262d"
+CODE_BLOCK_BG  = "#010409"
+HEADER_FG      = "#e6edf3"
+INLINE_CODE_BG = "#161b22"
+INLINE_CODE_FG = "#ff7b72"
 
 # 레이아웃 설정 파일 (스크립트 옆에 저장)
 LAYOUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "gui_layout.json")
@@ -286,6 +293,17 @@ class StarCoderGUI:
         )
         self.result_box.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 8))
 
+        # 태그 정의 (마크다운 스타일링)
+        self.result_box.tag_config("user_header",    background=USER_HEADER_BG, foreground=GREEN,        font=("Segoe UI", 10, "bold"))
+        self.result_box.tag_config("ai_header",      background=AI_HEADER_BG,   foreground=GREEN,        font=("Segoe UI", 10, "bold"))
+        self.result_box.tag_config("divider",        foreground=BORDER)
+        self.result_box.tag_config("code_header",    background=CODE_HEADER_BG,  foreground=MUTED,        font=("Consolas", 9))
+        self.result_box.tag_config("code_block",     background=CODE_BLOCK_BG,   foreground=CODE_FG,      font=("Consolas", 10))
+        self.result_box.tag_config("header",         foreground=HEADER_FG,       font=("Consolas", 12, "bold"))
+        self.result_box.tag_config("bold",           foreground=HEADER_FG,       font=("Consolas", 11, "bold"))
+        self.result_box.tag_config("inline_code",    background=INLINE_CODE_BG,  foreground=INLINE_CODE_FG, font=("Consolas", 10))
+        self.result_box.tag_config("normal",         foreground=TEXT,            font=("Consolas", 11))
+
     # ──────────────────────────────────────────
     # Helpers
     # ──────────────────────────────────────────
@@ -310,6 +328,83 @@ class StarCoderGUI:
             return "\n\n".join(b.strip() for b in blocks)
         return text.strip()
 
+    def _append_message(self, role, content):
+        """마크다운 스타일로 메시지 추가"""
+        self.result_box.config(state=tk.NORMAL)
+
+        # 헤더 추가
+        if len(self.result_box.get("1.0", tk.END).strip()) > 0:
+            self.result_box.insert(tk.END, "\n")
+
+        if role == "user":
+            self.result_box.insert(tk.END, "You ▶ ", "user_header")
+        else:
+            self.result_box.insert(tk.END, "StarCoder ▶ ", "ai_header")
+
+        # 콘텐츠 파싱 및 삽입
+        self._parse_and_insert(content)
+
+        # 구분선 추가
+        self.result_box.insert(tk.END, "\n" + "─" * 60 + "\n", "divider")
+        self.result_box.config(state=tk.DISABLED)
+        self.result_box.see(tk.END)
+
+    def _parse_and_insert(self, text):
+        """마크다운 텍스트 파싱 및 스타일과 함께 삽입"""
+        lines = text.split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            # 코드블록 처리
+            if line.strip().startswith("```"):
+                lang = line.strip()[3:].strip()
+                code_lines = []
+                i += 1
+                while i < len(lines) and not lines[i].strip().startswith("```"):
+                    code_lines.append(lines[i])
+                    i += 1
+                i += 1  # 닫는 ``` 건너뛰기
+
+                # 코드블록 헤더 (언어 표시)
+                if lang:
+                    self.result_box.insert(tk.END, f" {lang} \n", "code_header")
+                self.result_box.insert(tk.END, "\n".join(code_lines) + "\n\n", "code_block")
+                continue
+
+            # 헤더 (## ###) 처리
+            if line.strip().startswith("##"):
+                level = len(line) - len(line.lstrip("#"))
+                header_text = line.lstrip("#").strip()
+                self.result_box.insert(tk.END, header_text + "\n", "header")
+                i += 1
+                continue
+
+            # 일반 텍스트 (마크다운 인라인 요소 파싱)
+            if line.strip():
+                self._parse_inline(line)
+                self.result_box.insert(tk.END, "\n")
+            else:
+                self.result_box.insert(tk.END, "\n")
+            i += 1
+
+    def _parse_inline(self, text):
+        """인라인 마크다운 요소 파싱 (**bold**, `code`)"""
+        # 정규식으로 패턴 찾기
+        pattern = r"(\*\*[^*]+\*\*|`[^`]+`|[^*`]+)"
+        matches = re.findall(pattern, text)
+
+        for match in matches:
+            if match.startswith("**") and match.endswith("**"):
+                # 볼드
+                self.result_box.insert(tk.END, match[2:-2], "bold")
+            elif match.startswith("`") and match.endswith("`"):
+                # 인라인 코드
+                self.result_box.insert(tk.END, match[1:-1], "inline_code")
+            else:
+                # 일반 텍스트
+                self.result_box.insert(tk.END, match, "normal")
+
     # ──────────────────────────────────────────
     # Actions
     # ──────────────────────────────────────────
@@ -322,9 +417,16 @@ class StarCoderGUI:
 
         self._sending = True
         self.send_btn.config(state=tk.DISABLED, text="생성 중...")
-        self._set_text(self.result_box, "⏳ 생성 중입니다...")
         self._set_text(self.copy_box, "")
         self.elapsed_lbl.config(text="")
+
+        # 생성 중 표시
+        self.result_box.config(state=tk.NORMAL)
+        if len(self.result_box.get("1.0", tk.END).strip()) > 0:
+            self.result_box.insert(tk.END, "\n")
+        self.result_box.insert(tk.END, "⏳ 생성 중입니다...\n", "normal")
+        self.result_box.config(state=tk.DISABLED)
+        self.result_box.see(tk.END)
 
         def run():
             try:
@@ -352,14 +454,28 @@ class StarCoderGUI:
         threading.Thread(target=run, daemon=True).start()
 
     def _on_response(self, response, code, elapsed_ms):
-        self._set_text(self.result_box, response)
+        # 사용자 질문 추가
+        if len(self.history) >= 2:
+            user_msg = self.history[-2]["content"]
+            self._append_message("user", user_msg)
+
+        # AI 응답 추가
+        self._append_message("assistant", response)
+
         self._set_text(self.copy_box, code)
         self.elapsed_lbl.config(text=f"{elapsed_ms / 1000:.1f}초")
         turns = len(self.history) // 2
         self.turn_lbl.config(text=f"대화: {turns}턴")
 
     def _on_error(self, msg):
-        self._set_text(self.result_box, f"오류: {msg}")
+        self.result_box.config(state=tk.NORMAL)
+        # 이전 "생성 중..." 제거
+        content = self.result_box.get("1.0", tk.END)
+        if content.endswith("⏳ 생성 중입니다...\n"):
+            self.result_box.delete("1.0" if not content[:-21].strip() else "end-21c", tk.END)
+
+        self.result_box.insert(tk.END, f"❌ 오류: {msg}\n", "normal")
+        self.result_box.config(state=tk.DISABLED)
         self._set_text(self.copy_box, "")
 
     def _done_sending(self):
@@ -377,7 +493,9 @@ class StarCoderGUI:
 
     def _clear_history(self):
         self.history = []
-        self._set_text(self.result_box, "")
+        self.result_box.config(state=tk.NORMAL)
+        self.result_box.delete("1.0", tk.END)
+        self.result_box.config(state=tk.DISABLED)
         self._set_text(self.copy_box, "")
         self.elapsed_lbl.config(text="")
         self.turn_lbl.config(text="대화: 0턴")
