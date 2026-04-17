@@ -1,4 +1,4 @@
-chcp 65001 | Out-Null
+﻿chcp 65001 | Out-Null
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $env:PYTHONUTF8 = "1"
 

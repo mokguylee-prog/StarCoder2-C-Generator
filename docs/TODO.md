@@ -51,3 +51,6 @@ api_server.py 수정 (통계 추적 + 엔드포인트) — 15분
 대시보드 HTML 작성 — 15~20분
 
 
+PyInstaller가 tkinter의 TCL/TK DLL들을 빠뜨린 것입니다. 빌드 옵션을 강화합니다.
+
+
