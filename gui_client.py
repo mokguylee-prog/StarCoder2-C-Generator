@@ -1,7 +1,10 @@
 import tkinter as tk
-from tkinter import scrolledtext
+from tkinter import scrolledtext, messagebox
 import requests
 import threading
+import subprocess
+import webbrowser
+import os
 import re
 
 API_URL = "http://localhost:8888"
@@ -43,7 +46,7 @@ class StarCoderGUI:
                        relief=tk.FLAT, bd=0)
         bar.pack(fill=tk.X)
 
-        # 왼쪽: 상태
+        # ── 왼쪽: 상태 표시 ──
         self.dot = tk.Label(bar, text="●", fg=GREEN, bg=PANEL_BG,
                             font=("Segoe UI", 13))
         self.dot.pack(side=tk.LEFT, padx=(0, 5))
@@ -51,9 +54,26 @@ class StarCoderGUI:
         self.status_lbl = tk.Label(bar, text="서버 확인 중...",
                                    fg=MUTED, bg=PANEL_BG,
                                    font=("Segoe UI", 9))
-        self.status_lbl.pack(side=tk.LEFT, padx=(0, 24))
+        self.status_lbl.pack(side=tk.LEFT, padx=(0, 12))
 
-        # 오른쪽: 파라미터 + 초기화
+        # ── 서버 제어 버튼 (상태 표시 바로 오른쪽) ──
+        tk.Button(bar, text="▶ 서버 시작", command=self._server_start,
+                  bg="#1f4d2e", fg=GREEN, relief=tk.FLAT,
+                  font=("Segoe UI", 9), padx=10, pady=3,
+                  cursor="hand2").pack(side=tk.LEFT, padx=(0, 4))
+
+        self.stop_btn = tk.Button(bar, text="■ 서버 정지", command=self._server_stop,
+                  bg="#4d1f1f", fg=RED, relief=tk.FLAT,
+                  font=("Segoe UI", 9), padx=10, pady=3,
+                  cursor="hand2")
+        self.stop_btn.pack(side=tk.LEFT, padx=(0, 4))
+
+        tk.Button(bar, text="⬡ 대시보드", command=self._open_dashboard,
+                  bg=INPUT_BG, fg=BLUE, relief=tk.FLAT,
+                  font=("Segoe UI", 9), padx=10, pady=3,
+                  cursor="hand2").pack(side=tk.LEFT, padx=(0, 4))
+
+        # ── 오른쪽: 파라미터 + 초기화 ──
         tk.Button(bar, text="대화 초기화", command=self._clear_history,
                   bg=INPUT_BG, fg=MUTED, relief=tk.FLAT,
                   font=("Segoe UI", 9), padx=10, pady=3,
@@ -79,22 +99,30 @@ class StarCoderGUI:
     # Main 3-panel layout
     # ──────────────────────────────────────────
     def _build_main(self):
-        outer = tk.PanedWindow(self.root, orient=tk.VERTICAL,
-                               bg=BORDER, sashwidth=5,
-                               sashrelief=tk.FLAT, bd=0)
-        outer.pack(fill=tk.BOTH, expand=True)
+        self._outer = tk.PanedWindow(self.root, orient=tk.VERTICAL,
+                                     bg=BORDER, sashwidth=5,
+                                     sashrelief=tk.FLAT, bd=0)
+        self._outer.pack(fill=tk.BOTH, expand=True)
 
         # ── 상단: 입력 + 복사 (좌우 분할) ──
-        top_pane = tk.PanedWindow(outer, orient=tk.HORIZONTAL,
+        top_pane = tk.PanedWindow(self._outer, orient=tk.HORIZONTAL,
                                   bg=BORDER, sashwidth=5,
                                   sashrelief=tk.FLAT, bd=0)
-        outer.add(top_pane, minsize=220)
+        self._outer.add(top_pane, minsize=200)
 
         self._build_input_panel(top_pane)
         self._build_copy_panel(top_pane)
 
         # ── 하단: 실행 결과 ──
-        self._build_result_panel(outer)
+        self._build_result_panel(self._outer)
+
+        # 상단 80% / 하단 20% 비율로 초기 sash 위치 설정
+        self.root.after(150, self._set_sash)
+
+    def _set_sash(self):
+        total = self._outer.winfo_height()
+        if total > 10:
+            self._outer.sash_place(0, 0, int(total * 0.80))
 
     # ── Panel 1: 명령 입력 ──────────────────
     def _build_input_panel(self, parent):
@@ -143,7 +171,7 @@ class StarCoderGUI:
         hdr = tk.Frame(frame, bg=PANEL_BG)
         hdr.pack(fill=tk.X, padx=8)
 
-        self._section_label(hdr, "② 결과 복사", side=tk.LEFT)
+        self._section_label(hdr, "② 응답", side=tk.LEFT)
 
         self.copy_btn = tk.Button(
             hdr, text="클립보드 복사", command=self._copy_code,
@@ -170,7 +198,7 @@ class StarCoderGUI:
     # ── Panel 3: 실행 결과 ────────────────
     def _build_result_panel(self, parent):
         frame = tk.Frame(parent, bg=PANEL_BG)
-        parent.add(frame, minsize=180)
+        parent.add(frame, minsize=100)
 
         hdr = tk.Frame(frame, bg=PANEL_BG)
         hdr.pack(fill=tk.X, padx=8)
@@ -283,6 +311,23 @@ class StarCoderGUI:
         self._set_text(self.copy_box, "")
         self.elapsed_lbl.config(text="")
         self.turn_lbl.config(text="대화: 0턴")
+
+    def _run_ps1(self, script_name):
+        base = os.path.dirname(os.path.abspath(__file__))
+        script = os.path.join(base, script_name)
+        subprocess.Popen(
+            ["powershell", "-ExecutionPolicy", "Bypass", "-File", script],
+            creationflags=subprocess.CREATE_NEW_CONSOLE,
+        )
+
+    def _server_start(self):
+        self._run_ps1("start_server.ps1")
+
+    def _server_stop(self):
+        self._run_ps1("stop_server.ps1")
+
+    def _open_dashboard(self):
+        webbrowser.open(API_URL)
 
     # ──────────────────────────────────────────
     # Server health check (5초마다)
