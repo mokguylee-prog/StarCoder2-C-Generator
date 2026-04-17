@@ -1,122 +1,78 @@
-# -*- coding: utf-8 -*-
-"""StarCoder2 코드 생성 API 서버 (CPU/GGUF 전용)"""
+"""백그라운드 서버 런처 — start_server.ps1에서 호출"""
+import subprocess
 import sys
-from contextlib import asynccontextmanager
-from pathlib import Path
-from typing import Optional
+import os
+import time
 
-# Windows 콘솔 UTF-8 출력
-if sys.platform == "win32":
-    sys.stdout.reconfigure(encoding="utf-8")
-    sys.stderr.reconfigure(encoding="utf-8")
-
-try:
-    from fastapi import FastAPI, HTTPException
-    from pydantic import BaseModel
-    import uvicorn
-except ImportError:
-    print("설치 필요: pip install fastapi uvicorn")
-    raise
-
-try:
-    from llama_cpp import Llama
-except ImportError:
-    print("설치 필요: pip install llama-cpp-python")
-    raise
-
-# -- 설정 --
-MODEL_DIR  = Path("D:/StarCoder2/models/gguf")
-MODEL_FILE = "starcoder2-3b-Q4_K_M.gguf"
-PORT       = 8888
-
-FIM_PREFIX = "<fim_prefix>"
-FIM_SUFFIX = "<fim_suffix>"
-FIM_MIDDLE = "<fim_middle>"
-
-llm: Optional[Llama] = None
+PID_FILE = "server.pid"
+LOG_OUT = "server_out.log"
+LOG_ERR = "server_err.log"
 
 
-def find_model() -> Path:
-    path = MODEL_DIR / MODEL_FILE
-    if path.exists():
-        return path
-    found = list(MODEL_DIR.glob("*.gguf"))
-    if found:
-        return found[0]
-    raise FileNotFoundError(f"모델 없음: {MODEL_DIR}\n먼저 실행: python scripts/download_model.py")
+def is_running(pid: int) -> bool:
+    try:
+        import psutil
+        return psutil.pid_exists(pid)
+    except ImportError:
+        # psutil 없으면 os.kill(0) 방식으로 확인
+        try:
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    global llm
-    model_path = find_model()
-    print(f"모델 로딩: {model_path.name} ...")
-    llm = Llama(model_path=str(model_path), n_ctx=4096, n_threads=None, verbose=False)
-    print("준비 완료 - 서버 시작")
-    yield
-    llm = None
+def start():
+    if os.path.exists(PID_FILE):
+        with open(PID_FILE) as f:
+            pid_str = f.read().strip()
+        try:
+            pid = int(pid_str)
+        except ValueError:
+            pid = None
 
+        if pid and is_running(pid):
+            print(f"서버가 이미 실행 중입니다 (PID: {pid})")
+            print("stop_server.ps1 로 먼저 종료하세요.")
+            return
+        else:
+            # 프로세스가 없는데 pid 파일만 남은 경우 — 자동 정리
+            os.remove(PID_FILE)
+            print(f"이전 서버 잔여 파일 정리 완료 (PID: {pid_str})")
 
-app = FastAPI(title="StarCoder2 API", version="1.0", lifespan=lifespan)
+    with open(LOG_OUT, "w") as out, open(LOG_ERR, "w") as err:
+        proc = subprocess.Popen(
+            [sys.executable, "scripts/api_server.py"],
+            stdout=out,
+            stderr=err,
+            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if sys.platform == "win32" else 0,
+        )
 
+    with open(PID_FILE, "w") as f:
+        f.write(str(proc.pid))
 
-# -- 요청/응답 스키마 --
+    print(f"서버 시작 (PID: {proc.pid})")
+    print(f"로그: {LOG_OUT} / {LOG_ERR}")
+    print("모델 로딩에 30~60초 소요됩니다...")
 
-class GenerateRequest(BaseModel):
-    prompt: str
-    max_tokens: int    = 256
-    temperature: float = 0.2
-    top_p: float       = 0.95
+    # 최대 90초 대기 (내장 urllib 사용 — 외부 패키지 불필요)
+    import urllib.request
+    import json as _json
+    for i in range(90):
+        time.sleep(1)
+        try:
+            with urllib.request.urlopen("http://localhost:8888/health", timeout=2) as resp:
+                data = _json.loads(resp.read())
+                model = data.get("model", "")
+                print(f"서버 준비 완료 — 모델: {model}")
+                return
+        except Exception:
+            pass
+        if i % 10 == 9:
+            print(f"  대기 중... ({i+1}초)")
 
-class FimRequest(BaseModel):
-    prefix: str
-    suffix: str
-    max_tokens: int    = 128
-    temperature: float = 0.2
-
-class GenerateResponse(BaseModel):
-    generated: str
-    tokens_generated: int
-
-
-# -- 엔드포인트 --
-
-@app.get("/health")
-def health():
-    return {"status": "ok", "model": MODEL_FILE}
-
-
-@app.post("/generate", response_model=GenerateResponse)
-def generate(req: GenerateRequest):
-    if llm is None:
-        raise HTTPException(503, "모델 로딩 중")
-    out = llm(
-        req.prompt,
-        max_tokens=req.max_tokens,
-        temperature=req.temperature,
-        top_p=req.top_p,
-        stop=["}\n\n", "\n\n\n"],
-        echo=True,
-    )
-    return GenerateResponse(
-        generated=out["choices"][0]["text"],
-        tokens_generated=out["usage"]["completion_tokens"],
-    )
-
-
-@app.post("/fim", response_model=GenerateResponse)
-def fim(req: FimRequest):
-    if llm is None:
-        raise HTTPException(503, "모델 로딩 중")
-    prompt = f"{FIM_PREFIX}{req.prefix}{FIM_SUFFIX}{req.suffix}{FIM_MIDDLE}"
-    out = llm(prompt, max_tokens=req.max_tokens, temperature=req.temperature, echo=False)
-    return GenerateResponse(
-        generated=out["choices"][0]["text"],
-        tokens_generated=out["usage"]["completion_tokens"],
-    )
+    print("서버 시작 시간 초과. server_err.log 를 확인하세요.")
 
 
 if __name__ == "__main__":
-    print(f"StarCoder2 서버: http://localhost:{PORT}")
-    print(f"API 문서:        http://localhost:{PORT}/docs")
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    start()

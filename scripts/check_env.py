@@ -1,67 +1,42 @@
-"""환경 확인 스크립트 - 설치 상태를 점검합니다."""
+"""환경 검증 스크립트"""
 import sys
+import os
 
+print(f"Python: {sys.version}")
+print(f"플랫폼: {sys.platform}")
 
-def check(name, fn):
-    try:
-        result = fn()
-        print(f"  [OK] {name}: {result}")
-        return True
-    except Exception as e:
-        print(f"  [FAIL] {name}: {e}")
-        return False
+# llama-cpp-python
+try:
+    from llama_cpp import Llama
+    print("llama-cpp-python: OK")
+except ImportError:
+    print("llama-cpp-python: 미설치 → pip install llama-cpp-python")
 
+# fastapi
+try:
+    import fastapi
+    print(f"FastAPI: {fastapi.__version__}")
+except ImportError:
+    print("FastAPI: 미설치 → pip install fastapi uvicorn")
 
-def main():
-    print("=" * 50)
-    print("StarCoder2 환경 확인")
-    print("=" * 50)
+# requests
+try:
+    import requests
+    print(f"requests: {requests.__version__}")
+except ImportError:
+    print("requests: 미설치")
 
-    print("\n[Python]")
-    check("Python 버전", lambda: sys.version.split()[0])
-
-    print("\n[PyTorch]")
-    import_ok = check("torch import", lambda: __import__("torch").__version__)
-    if import_ok:
-        import torch
-        check("CUDA 사용 가능", lambda: torch.cuda.is_available())
-        if torch.cuda.is_available():
-            check("GPU 이름", lambda: torch.cuda.get_device_name(0))
-            vram = torch.cuda.get_device_properties(0).total_memory // 1024**3
-            check("GPU VRAM", lambda: f"{vram} GB")
-
-            if vram >= 14:
-                print("  → 추천 모델: starcoder2-7b (bfloat16)")
-            elif vram >= 8:
-                print("  → 추천 모델: starcoder2-7b (4-bit) 또는 starcoder2-3b")
-            elif vram >= 4:
-                print("  → 추천 모델: starcoder2-3b (4-bit)")
-            else:
-                print("  → 주의: VRAM 부족. CPU 실행 또는 GGUF 모델 사용 권장")
-        else:
-            print("  → GPU 없음. CPU 전용 실행 (느림). GGUF 모델 권장")
-
-    print("\n[HuggingFace]")
-    check("transformers", lambda: __import__("transformers").__version__)
-    check("accelerate", lambda: __import__("accelerate").__version__)
-    check("huggingface_hub", lambda: __import__("huggingface_hub").__version__)
-
-    print("\n[양자화 (선택)]")
-    check("bitsandbytes", lambda: __import__("bitsandbytes").__version__)
-
-    print("\n[HuggingFace 로그인 상태]")
-    try:
-        from huggingface_hub import HfApi
-        api = HfApi()
-        user = api.whoami()
-        print(f"  [OK] 로그인됨: {user['name']}")
-    except Exception:
-        print("  [주의] 로그인 안됨 - `huggingface-cli login` 실행 필요")
-
-    print("\n" + "=" * 50)
-    print("확인 완료")
-    print("=" * 50)
-
-
-if __name__ == "__main__":
-    main()
+# 모델 파일 확인
+MODEL_DIR = "D:/StarCoder3/models/gguf"
+if os.path.isdir(MODEL_DIR):
+    files = [f for f in os.listdir(MODEL_DIR) if f.endswith(".gguf")]
+    if files:
+        for f in files:
+            size_gb = os.path.getsize(os.path.join(MODEL_DIR, f)) / 1024**3
+            print(f"모델 발견: {f} ({size_gb:.1f} GB)")
+    else:
+        print(f"모델 없음: {MODEL_DIR}에 .gguf 파일이 없습니다")
+        print("→ python scripts/download_model.py 로 다운로드하세요")
+else:
+    print(f"모델 디렉토리 없음: {MODEL_DIR}")
+    print("→ python scripts/download_model.py 로 다운로드하세요")

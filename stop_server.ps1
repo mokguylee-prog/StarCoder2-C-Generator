@@ -1,20 +1,21 @@
-# StarCoder2 서버 종료
+﻿chcp 65001 | Out-Null
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
-$PID_FILE = "$PSScriptRoot\server.pid"
-
-if (-not (Test-Path $PID_FILE)) {
-    Write-Host "실행 중인 서버 없음"
-    exit 0
+$pidFile = "server.pid"
+if (-not (Test-Path $pidFile)) {
+    Write-Host "server.pid 없음 - 서버가 실행 중이지 않습니다."
+    exit
 }
 
-$savedPid = Get-Content $PID_FILE
-$proc = Get-Process -Id $savedPid -ErrorAction SilentlyContinue
+$serverPid = [int]((Get-Content $pidFile).Trim())
+Write-Host "종료 시도 중... (PID: $serverPid)"
 
-if ($proc) {
-    Stop-Process -Id $savedPid -Force
-    Write-Host "서버 종료 (PID: $savedPid)"
+$result = taskkill /PID $serverPid /F 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "서버 종료 완료 (PID: $serverPid)"
 } else {
-    Write-Host "프로세스 없음 (이미 종료됨)"
+    Write-Host "프로세스를 찾을 수 없습니다 (이미 종료됨, PID: $serverPid)"
 }
 
-Remove-Item $PID_FILE
+Remove-Item $pidFile -ErrorAction SilentlyContinue
+Write-Host "server.pid 삭제 완료"

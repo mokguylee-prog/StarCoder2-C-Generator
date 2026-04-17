@@ -1,164 +1,141 @@
-"""StarCoder2 대화형 클라이언트 — python client.py 로 바로 시작"""
+"""StarCoder3 대화형 클라이언트 — 자연어로 코드를 요청합니다."""
+import requests
+import json
 import sys
-
-try:
-    import requests
-except ImportError:
-    print("설치 필요: pip install requests")
-    sys.exit(1)
+import os
 
 SERVER = "http://localhost:8888"
-
-BANNER = """
-╔══════════════════════════════════════════╗
-║        StarCoder2  C 코드 생성기          ║
-║  서버: http://localhost:8888              ║
-╠══════════════════════════════════════════╣
-║  부분 C 코드 입력 → 빈 줄로 전송          ║
-║  :fim   FIM 모드 (중간 채우기)            ║
-║  :gen   일반 생성 모드 (기본)             ║
-║  :help  도움말                           ║
-║  :quit  종료  (또는 Ctrl+C)              ║
-╚══════════════════════════════════════════╝
-"""
-
-HELP = """명령어:
-  :gen   일반 코드 완성 모드 (기본)
-  :fim   FIM 모드 — 앞/뒤 코드를 주면 중간을 채워줌
-  :help  이 도움말
-  :quit  종료
-
-입력 방법:
-  - C 코드를 여러 줄 입력한 뒤 빈 줄(Enter)로 전송
-  - :fim 모드에서는 prefix → 빈 줄 → suffix → 빈 줄 순으로 입력
-"""
+HISTORY: list[dict] = []  # 대화 히스토리 (다중 턴 유지)
 
 
-def call_generate(prompt: str) -> None:
-    r = requests.post(f"{SERVER}/generate", json={"prompt": prompt}, timeout=120)
+def check_server() -> str:
+    try:
+        r = requests.get(f"{SERVER}/health", timeout=5)
+        r.raise_for_status()
+        return r.json().get("model", "unknown")
+    except Exception as e:
+        print(f"서버에 연결할 수 없습니다: {e}")
+        print("start_server.ps1 로 서버를 먼저 시작하세요.")
+        sys.exit(1)
+
+
+def ask(prompt: str, max_tokens: int = 1024, temperature: float = 0.3) -> str:
+    HISTORY.append({"role": "user", "content": prompt})
+
+    payload = {
+        "messages": HISTORY,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    r = requests.post(f"{SERVER}/chat", json=payload, timeout=300)
     r.raise_for_status()
     data = r.json()
-    print("\n" + "─" * 52)
-    print(data["generated"])
-    print("─" * 52)
-    print(f"[생성 토큰: {data['tokens_generated']}]\n")
+
+    reply = data["message"]["content"]
+    HISTORY.append({"role": "assistant", "content": reply})
+    tokens = data.get("usage", {})
+    return reply, tokens
 
 
-def call_fim(prefix: str, suffix: str) -> None:
-    r = requests.post(f"{SERVER}/fim", json={"prefix": prefix, "suffix": suffix}, timeout=120)
-    r.raise_for_status()
-    data = r.json()
-    print("\n" + "─" * 52)
-    print("[채워진 중간 코드]")
-    print(data["generated"])
-    print("─" * 52)
-    print(f"[생성 토큰: {data['tokens_generated']}]\n")
+def print_help():
+    print("""
+명령어:
+  :clear    대화 히스토리 초기화 (새 대화 시작)
+  :temp N   생성 온도 변경 (0.0~1.0, 낮을수록 확정적)
+  :tokens N 최대 생성 토큰 수 변경
+  :save     마지막 응답을 output.txt에 저장
+  :quit     종료 (또는 Ctrl+C)
+  :help     이 도움말
+""")
 
 
-def read_block(prompt_label: str) -> str:
-    """빈 줄이 나올 때까지 여러 줄 입력을 받아 하나의 문자열로 반환."""
-    print(prompt_label)
+def print_banner(model: str):
+    w = 50
+    print("╔" + "═" * w + "╗")
+    print(f"║  StarCoder3  Instruction-Following 코드 생성기  ║")
+    print(f"║  모델: {model[:w-8]:<{w-8}}  ║")
+    print("╠" + "═" * w + "╣")
+    print("║  자연어로 코드를 요청하세요                    ║")
+    print("║  여러 줄 입력 → 빈 줄로 전송                  ║")
+    print("║  :help 로 명령어 확인                          ║")
+    print("╚" + "═" * w + "╝")
+    print()
+
+
+def collect_input(prompt_str: str) -> str:
     lines = []
+    print(prompt_str, end="", flush=True)
     while True:
-        try:
-            line = input()
-        except EOFError:
+        line = input()
+        if line == "" and lines:
             break
-        if line == "":
-            break
+        if line == "" and not lines:
+            continue
         lines.append(line)
     return "\n".join(lines)
 
 
-def check_server() -> bool:
-    try:
-        r = requests.get(f"{SERVER}/health", timeout=5)
-        r.raise_for_status()
-        model = r.json().get("model", "")
-        print(f"서버 연결 확인 — 모델: {model}\n")
-        return True
-    except requests.ConnectionError:
-        print(f"[오류] 서버에 연결할 수 없습니다: {SERVER}")
-        print("먼저 실행하세요: .\\start_server.ps1\n")
-        return False
-
-
 def main():
-    print(BANNER)
+    model = check_server()
+    print_banner(model)
 
-    if not check_server():
-        sys.exit(1)
-
-    mode = "gen"  # 현재 모드: "gen" 또는 "fim"
+    max_tokens = 1024
+    temperature = 0.3
+    last_reply = ""
 
     while True:
         try:
-            mode_tag = "[GEN]" if mode == "gen" else "[FIM]"
-            line = input(f"{mode_tag} >>> ").strip()
+            user_input = collect_input("\n[YOU] >>> ")
         except (KeyboardInterrupt, EOFError):
             print("\n종료합니다.")
             break
 
-        if not line:
-            continue
+        cmd = user_input.strip().lower()
 
-        # ── 명령어 처리 ──────────────────────────────
-        if line == ":quit":
+        if cmd == ":quit":
             print("종료합니다.")
             break
-        elif line == ":help":
-            print(HELP)
+        elif cmd == ":help":
+            print_help()
             continue
-        elif line == ":gen":
-            mode = "gen"
-            print("모드 변경: 일반 코드 완성\n")
+        elif cmd == ":clear":
+            HISTORY.clear()
+            print("히스토리를 초기화했습니다.")
             continue
-        elif line == ":fim":
-            mode = "fim"
-            print("모드 변경: FIM (코드 중간 채우기)\n")
+        elif cmd == ":save":
+            with open("output.txt", "w", encoding="utf-8") as f:
+                f.write(last_reply)
+            print("output.txt 에 저장했습니다.")
+            continue
+        elif cmd.startswith(":temp "):
+            try:
+                temperature = float(cmd.split()[1])
+                print(f"온도: {temperature}")
+            except ValueError:
+                print("사용법: :temp 0.3")
+            continue
+        elif cmd.startswith(":tokens "):
+            try:
+                max_tokens = int(cmd.split()[1])
+                print(f"최대 토큰: {max_tokens}")
+            except ValueError:
+                print("사용법: :tokens 1024")
             continue
 
-        # ── 코드 입력 처리 ────────────────────────────
+        print("\n생성 중...\n")
         try:
-            if mode == "gen":
-                # 첫 줄은 이미 입력받았으므로 이어서 나머지 줄 수집
-                print("(계속 입력 → 빈 줄로 전송)")
-                rest_lines = []
-                while True:
-                    try:
-                        l = input()
-                    except EOFError:
-                        break
-                    if l == "":
-                        break
-                    rest_lines.append(l)
-                prompt = line + ("\n" + "\n".join(rest_lines) if rest_lines else "")
-                print("생성 중...")
-                call_generate(prompt)
-
-            else:  # fim
-                # 첫 줄 입력이 prefix 시작
-                print("(prefix 계속 입력 → 빈 줄로 완료)")
-                prefix_lines = [line]
-                while True:
-                    try:
-                        l = input()
-                    except EOFError:
-                        break
-                    if l == "":
-                        break
-                    prefix_lines.append(l)
-
-                suffix = read_block("suffix 입력 (뒷부분 코드, 빈 줄로 완료):")
-                print("생성 중...")
-                call_fim("\n".join(prefix_lines), suffix)
-
-        except requests.ConnectionError:
-            print("[오류] 서버 연결이 끊겼습니다. 서버 상태를 확인하세요.\n")
-        except requests.HTTPError as e:
-            print(f"[오류] 서버 응답 오류: {e}\n")
+            reply, usage = ask(user_input, max_tokens=max_tokens, temperature=temperature)
+            last_reply = reply
+            print("─" * 60)
+            print(reply)
+            print("─" * 60)
+            pt = usage.get("prompt_tokens", "?")
+            ct = usage.get("completion_tokens", "?")
+            print(f"[프롬프트 토큰: {pt} | 생성 토큰: {ct}]")
+        except requests.exceptions.Timeout:
+            print("시간 초과 — max_tokens를 줄이거나 서버를 확인하세요.")
         except Exception as e:
-            print(f"[오류] {e}\n")
+            print(f"오류: {e}")
 
 
 if __name__ == "__main__":

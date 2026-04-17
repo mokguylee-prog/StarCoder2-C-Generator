@@ -1,40 +1,46 @@
-# StarCoder2 D 드라이브 설치 스크립트 (PowerShell)
-# 실행: PowerShell에서 .\scripts\setup_d_drive.ps1
+# StarCoder3 D드라이브 설치 스크립트
+$ErrorActionPreference = "Stop"
 
-Write-Host "=== StarCoder2 D 드라이브 설치 ===" -ForegroundColor Cyan
+Write-Host "=== StarCoder3 D드라이브 설치 ===" -ForegroundColor Cyan
 
-# D 드라이브 경로 설정
-$BASE = "D:\StarCoder2"
-$MODEL_DIR = "$BASE\models\gguf"
-$VENV_DIR = "$BASE\venv"
+# 환경변수 설정 (D드라이브)
+[System.Environment]::SetEnvironmentVariable("HF_HOME",            "D:\StarCoder3\hf_cache", "User")
+[System.Environment]::SetEnvironmentVariable("TRANSFORMERS_CACHE", "D:\StarCoder3\hf_cache", "User")
+[System.Environment]::SetEnvironmentVariable("PIP_CACHE_DIR",      "D:\StarCoder3\pip_cache", "User")
+$env:HF_HOME = "D:\StarCoder3\hf_cache"
+$env:PIP_CACHE_DIR = "D:\StarCoder3\pip_cache"
 
-# 폴더 생성
-New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
-New-Item -ItemType Directory -Force -Path $VENV_DIR | Out-Null
-Write-Host "[1/5] 폴더 생성 완료: $BASE" -ForegroundColor Green
+Write-Host "환경변수 설정 완료" -ForegroundColor Green
 
-# HuggingFace 캐시를 D 드라이브로
-[Environment]::SetEnvironmentVariable("HF_HOME", "D:\StarCoder2\hf_cache", "User")
-[Environment]::SetEnvironmentVariable("TRANSFORMERS_CACHE", "D:\StarCoder2\hf_cache\hub", "User")
-Write-Host "[2/5] HuggingFace 캐시 경로 → D:\StarCoder2\hf_cache" -ForegroundColor Green
+# 디렉토리 생성
+$dirs = @(
+    "D:\StarCoder3\models\gguf",
+    "D:\StarCoder3\hf_cache",
+    "D:\StarCoder3\pip_cache"
+)
+foreach ($d in $dirs) {
+    if (-not (Test-Path $d)) { New-Item -ItemType Directory -Path $d | Out-Null }
+}
+Write-Host "디렉토리 생성 완료" -ForegroundColor Green
 
-# pip 캐시를 D 드라이브로
-[Environment]::SetEnvironmentVariable("PIP_CACHE_DIR", "D:\StarCoder2\pip_cache", "User")
-Write-Host "[3/5] pip 캐시 경로 → D:\StarCoder2\pip_cache" -ForegroundColor Green
-
-# Python 가상환경 생성 (D 드라이브)
-Write-Host "[4/5] 가상환경 생성 중: $VENV_DIR" -ForegroundColor Yellow
-python -m venv $VENV_DIR
-Write-Host "      완료" -ForegroundColor Green
+# venv 생성
+$venvPath = "D:\StarCoder3\venv"
+if (-not (Test-Path $venvPath)) {
+    Write-Host "가상환경 생성: $venvPath"
+    python -m venv $venvPath
+} else {
+    Write-Host "가상환경 이미 존재: $venvPath"
+}
 
 # 패키지 설치
-Write-Host "[5/5] 패키지 설치 중..." -ForegroundColor Yellow
-& "$VENV_DIR\Scripts\pip" install --cache-dir "D:\StarCoder2\pip_cache" `
-    llama-cpp-python `
-    huggingface_hub
+$pip = "$venvPath\Scripts\pip.exe"
+Write-Host "패키지 설치 중..."
+& $pip install --upgrade pip
+& $pip install -r requirements.txt
 
-Write-Host "`n=== 설치 완료 ===" -ForegroundColor Cyan
-Write-Host "다음 단계:" -ForegroundColor White
-Write-Host "  1. 가상환경 활성화: $VENV_DIR\Scripts\activate"
-Write-Host "  2. 모델 다운로드:   python scripts\download_model.py"
-Write-Host "  3. 코드 생성:       python scripts\generate_cpu_gguf.py"
+Write-Host ""
+Write-Host "=== 설치 완료 ===" -ForegroundColor Green
+Write-Host "다음 단계:"
+Write-Host "  1. 모델 다운로드: D:\StarCoder3\venv\Scripts\python.exe scripts\download_model.py"
+Write-Host "  2. 서버 시작:     .\start_server.ps1"
+Write-Host "  3. 클라이언트:    .\start_client.ps1"
