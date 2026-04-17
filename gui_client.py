@@ -202,16 +202,9 @@ class StarCoderGUI:
 
         self._section_label(frame, "① 명령 입력")
 
-        self.input_box = tk.Text(
-            frame, bg=INPUT_BG, fg=TEXT, insertbackground=TEXT,
-            relief=tk.FLAT, font=("Consolas", 11), wrap=tk.WORD,
-            padx=10, pady=10, undo=True,
-        )
-        self.input_box.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 6))
-        self.input_box.bind("<Control-Return>", lambda e: self._send())
-
+        # btn_row를 먼저 BOTTOM에 pack해야 expand=True인 input_box에 밀리지 않음
         btn_row = tk.Frame(frame, bg=PANEL_BG, pady=6, padx=8)
-        btn_row.pack(fill=tk.X)
+        btn_row.pack(side=tk.BOTTOM, fill=tk.X)
 
         self.send_btn = tk.Button(
             btn_row, text="전송  (Ctrl+Enter)", command=self._send,
@@ -232,6 +225,14 @@ class StarCoderGUI:
                                  fg=MUTED, bg=PANEL_BG,
                                  font=("Segoe UI", 9))
         self.turn_lbl.pack(side=tk.RIGHT)
+
+        self.input_box = tk.Text(
+            frame, bg=INPUT_BG, fg=TEXT, insertbackground=TEXT,
+            relief=tk.FLAT, font=("Consolas", 11), wrap=tk.WORD,
+            padx=10, pady=10, undo=True,
+        )
+        self.input_box.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0, 6))
+        self.input_box.bind("<Control-Return>", lambda e: self._send())
 
     # ── Panel 2: 응답 ─────────────────────
     def _build_copy_panel(self, parent):
