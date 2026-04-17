@@ -160,7 +160,8 @@ def chat(req: ChatRequest):
     response_text = choice["message"]["content"]
     user_msgs = [m.content for m in req.messages if m.role == "user"]
     record(pt, gt, elapsed, user_msgs[-1] if user_msgs else "", response_text)
-    return {"message": choice["message"], "model": model_name, "usage": usage}
+    return {"response": response_text, "elapsed_ms": round(elapsed),
+            "message": choice["message"], "model": model_name, "usage": usage}
 
 
 @app.get("/health")
@@ -213,7 +214,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>월평동이상목 StarCoder3 Dashboard</title>
+<title>월평동 이상목 Server StarCoder3 Dashboard</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: #0d1117; color: #c9d1d9; font-family: 'Segoe UI', sans-serif; padding: 24px; }
@@ -261,7 +262,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>월평동이상목 StarCoder3 Dashboard</h1>
+<h1>월평동 이상목 Server StarCoder3 Dashboard</h1>
 <p class="subtitle">Instruction-Following Code Generation Server</p>
 
 <div class="status-bar">

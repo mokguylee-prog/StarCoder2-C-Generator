@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [('C:\\Users\\idros\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tcl8.6', '_tcl_data'), ('C:\\Users\\idros\\AppData\\Local\\Programs\\Python\\Python313\\tcl\\tk8.6', '_tk_data')]
 binaries = []
 hiddenimports = ['tkinter', 'tkinter.ttk', 'tkinter.scrolledtext', '_tkinter']
 tmp_ret = collect_all('tkinter')
@@ -42,4 +42,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=['icon.ico'],
 )

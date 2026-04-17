@@ -7,12 +7,15 @@ if (-not (Test-Path $pidFile)) {
     exit
 }
 
-$pid = Get-Content $pidFile
-try {
-    Stop-Process -Id $pid -Force
-    Write-Host "서버 종료 (PID: $pid)"
-} catch {
-    Write-Host "프로세스를 찾을 수 없습니다 (이미 종료됨)"
+$serverPid = [int]((Get-Content $pidFile).Trim())
+Write-Host "종료 시도 중... (PID: $serverPid)"
+
+$result = taskkill /PID $serverPid /F 2>&1
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "서버 종료 완료 (PID: $serverPid)"
+} else {
+    Write-Host "프로세스를 찾을 수 없습니다 (이미 종료됨, PID: $serverPid)"
 }
 
-Remove-Item $pidFile
+Remove-Item $pidFile -ErrorAction SilentlyContinue
+Write-Host "server.pid 삭제 완료"

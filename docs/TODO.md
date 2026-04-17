@@ -53,4 +53,21 @@ api_server.py 수정 (통계 추적 + 엔드포인트) — 15분
 
 PyInstaller가 tkinter의 TCL/TK DLL들을 빠뜨린 것입니다. 빌드 옵션을 강화합니다.
 
+수정 완료했습니다. 원인과 수정 내용:
+
+항목	이전 (잘못됨)	수정 후 (올바름)
+TCL 목적지	;tcl	;_tcl_data
+TK 목적지	;tk	;_tk_data
+경로 탐색	PowerShell로 고정 경로 탐색	Python sys.base_prefix로 정확히 탐색
+PyInstaller의 런타임 훅(_pyi_rth_tkinter.py)이 _tcl_data / _tk_data 라는 이름으로 찾기 때문에 이름이 맞아야 합니다.
+
+기존 exe 삭제 후 .\build_client.ps1 다시 실행하세요.
+
+
+수정 요약:
+
+Get-Process 대신 taskkill /PID /F 직접 사용 — Windows에서 가장 확실한 프로세스 종료 방법
+$LASTEXITCODE로 성공/실패 판단 (0=성공, 그 외=실패)
+
+
 
