@@ -272,17 +272,25 @@ public sealed class MainForm : Form
     {
         try
         {
+            var openCodePath = @"C:\Users\idros\AppData\Local\Programs\@opencode-aidesktop\OpenCode.exe";
+
+            if (!File.Exists(openCodePath))
+            {
+                Warn($"OpenCode를 찾을 수 없습니다:\n{openCodePath}\n\nOpenCode가 설치되어 있는지 확인하세요.");
+                return;
+            }
+
             var projectDir = AppContext.BaseDirectory;
             Process.Start(new ProcessStartInfo
             {
-                FileName = "opencode",
+                FileName = openCodePath,
                 Arguments = $"\"{projectDir}\"",
-                UseShellExecute = true
+                UseShellExecute = false
             });
         }
         catch (Exception ex)
         {
-            Warn($"OpenCode 열기 실패: {ex.Message}\n\nOpenCode가 설치되어 있는지 확인하세요.");
+            Warn($"OpenCode 열기 실패: {ex.Message}");
         }
     }
 
