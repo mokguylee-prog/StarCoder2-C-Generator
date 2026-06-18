@@ -11,6 +11,8 @@ public sealed class MainForm : Form
     private const string DefaultModelPath = @"D:\StarCoder3\models\gguf\qwen2.5-coder-7b-instruct-q4_k_m.gguf";
     private const int DefaultPort = 8888;
 
+    private readonly TabControl _tabControl;
+
     private readonly TextBox _exeBox;
     private readonly TextBox _modelBox;
     private readonly NumericUpDown _portBox;
@@ -32,20 +34,29 @@ public sealed class MainForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(820, 560);
 
-        // ── 상단 컨트롤 패널 ─────────────────────────────
-        var top = new TableLayoutPanel
+        // ── 탭 컨트롤 ─────────────────────────────────────
+        _tabControl = new TabControl
+        {
+            Dock = DockStyle.Fill,
+            ItemSize = new Size(80, 30),
+            Font = new Font("Segoe UI", 10f),
+        };
+
+        // 탭 1: 제어
+        var controlTab = new TabPage { Text = "제어", Padding = new Padding(10) };
+        var controlPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
             ColumnCount = 4,
             RowCount = 4,
-            Padding = new Padding(10, 8, 10, 8),
+            Padding = new Padding(0),
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
         };
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
-        top.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
+        controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
+        controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
+        controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
 
         _exeBox = new TextBox { Text = DefaultExePath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
         _modelBox = new TextBox { Text = DefaultModelPath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
@@ -56,16 +67,16 @@ public sealed class MainForm : Form
         var modelBrowse = new Button { Text = "...", Dock = DockStyle.Fill };
         modelBrowse.Click += (_, _) => PickFile(_modelBox, "GGUF 모델 (*.gguf)|*.gguf|모든 파일 (*.*)|*.*");
 
-        top.Controls.Add(new Label { Text = "서버 EXE", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 0);
-        top.Controls.Add(_exeBox, 1, 0);
-        top.Controls.Add(exeBrowse, 2, 0);
+        controlPanel.Controls.Add(new Label { Text = "서버 EXE", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 0);
+        controlPanel.Controls.Add(_exeBox, 1, 0);
+        controlPanel.Controls.Add(exeBrowse, 2, 0);
 
-        top.Controls.Add(new Label { Text = "모델", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 1);
-        top.Controls.Add(_modelBox, 1, 1);
-        top.Controls.Add(modelBrowse, 2, 1);
+        controlPanel.Controls.Add(new Label { Text = "모델", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 1);
+        controlPanel.Controls.Add(_modelBox, 1, 1);
+        controlPanel.Controls.Add(modelBrowse, 2, 1);
 
-        top.Controls.Add(new Label { Text = "포트", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 2);
-        top.Controls.Add(_portBox, 1, 2);
+        controlPanel.Controls.Add(new Label { Text = "포트", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 2);
+        controlPanel.Controls.Add(_portBox, 1, 2);
 
         // 버튼 줄
         var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
@@ -80,29 +91,36 @@ public sealed class MainForm : Form
         btnPanel.Controls.Add(_stopBtn);
         btnPanel.Controls.Add(_browserBtn);
         btnPanel.Controls.Add(_statusLabel);
-        top.Controls.Add(btnPanel, 0, 3);
-        top.SetColumnSpan(btnPanel, 4);
+        controlPanel.Controls.Add(btnPanel, 0, 3);
+        controlPanel.SetColumnSpan(btnPanel, 4);
 
-        // ── 하단 로그 ────────────────────────────────────
+        controlTab.Controls.Add(controlPanel);
+
+        // 탭 2: 로그
+        var logTab = new TabPage { Text = "로그", Padding = new Padding(10) };
         _logBox = new TextBox
         {
-            Dock = DockStyle.Bottom,
+            Dock = DockStyle.Fill,
             Multiline = true,
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
-            Height = 120,
             BackColor = Color.FromArgb(30, 30, 30),
             ForeColor = Color.Gainsboro,
             Font = new Font("Consolas", 9f),
         };
+        logTab.Controls.Add(_logBox);
 
-        // ── 웹뷰 (가운데) ────────────────────────────────
+        // 탭 3: 브라우저
+        var browserTab = new TabPage { Text = "브라우저", Padding = new Padding(0) };
         _webView = new WebView2 { Dock = DockStyle.Fill };
+        browserTab.Controls.Add(_webView);
 
-        // 도킹 순서: Fill 먼저 추가 → Bottom → Top 순으로 바깥쪽 배치
-        Controls.Add(_webView);
-        Controls.Add(_logBox);
-        Controls.Add(top);
+        // 탭 추가
+        _tabControl.TabPages.Add(controlTab);
+        _tabControl.TabPages.Add(logTab);
+        _tabControl.TabPages.Add(browserTab);
+
+        Controls.Add(_tabControl);
 
         Load += async (_, _) => await InitWebViewAsync();
         FormClosing += (_, _) => StopServer();
