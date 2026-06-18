@@ -33,6 +33,14 @@ public sealed class MainForm : Form
         Height = 800;
         StartPosition = FormStartPosition.CenterScreen;
         MinimumSize = new Size(820, 560);
+        WindowState = FormWindowState.Maximized;
+
+        // ── 테마 설정 ─────────────────────────────────────
+        var bgColor = Color.FromArgb(50, 50, 50);
+        var fgColor = Color.FromArgb(220, 220, 220);
+        var tabColor = Color.FromArgb(60, 60, 60);
+        BackColor = bgColor;
+        ForeColor = fgColor;
 
         // ── 탭 컨트롤 ─────────────────────────────────────
         _tabControl = new TabControl
@@ -40,10 +48,12 @@ public sealed class MainForm : Form
             Dock = DockStyle.Fill,
             ItemSize = new Size(80, 30),
             Font = new Font("Segoe UI", 10f),
+            BackColor = tabColor,
+            ForeColor = fgColor,
         };
 
         // 탭 1: 제어
-        var controlTab = new TabPage { Text = "제어", Padding = new Padding(10) };
+        var controlTab = new TabPage { Text = "제어", Padding = new Padding(10), BackColor = bgColor, ForeColor = fgColor };
         var controlPanel = new TableLayoutPanel
         {
             Dock = DockStyle.Top,
@@ -52,44 +62,48 @@ public sealed class MainForm : Form
             Padding = new Padding(0),
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = bgColor,
         };
         controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 95));
         controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 70));
         controlPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 0));
 
-        _exeBox = new TextBox { Text = DefaultExePath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
-        _modelBox = new TextBox { Text = DefaultModelPath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right };
-        _portBox = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = DefaultPort, Dock = DockStyle.Fill };
+        _exeBox = new TextBox { Text = DefaultExePath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right, BackColor = Color.FromArgb(70, 70, 70), ForeColor = fgColor };
+        _modelBox = new TextBox { Text = DefaultModelPath, Dock = DockStyle.Fill, Anchor = AnchorStyles.Left | AnchorStyles.Right, BackColor = Color.FromArgb(70, 70, 70), ForeColor = fgColor };
+        _portBox = new NumericUpDown { Minimum = 1, Maximum = 65535, Value = DefaultPort, Dock = DockStyle.Fill, BackColor = Color.FromArgb(70, 70, 70), ForeColor = fgColor };
 
-        var exeBrowse = new Button { Text = "...", Dock = DockStyle.Fill };
+        var exeBrowse = new Button { Text = "...", Dock = DockStyle.Fill, BackColor = Color.FromArgb(80, 80, 80), ForeColor = fgColor, FlatStyle = FlatStyle.Flat };
         exeBrowse.Click += (_, _) => PickFile(_exeBox, "실행 파일 (*.exe)|*.exe|모든 파일 (*.*)|*.*");
-        var modelBrowse = new Button { Text = "...", Dock = DockStyle.Fill };
+        var modelBrowse = new Button { Text = "...", Dock = DockStyle.Fill, BackColor = Color.FromArgb(80, 80, 80), ForeColor = fgColor, FlatStyle = FlatStyle.Flat };
         modelBrowse.Click += (_, _) => PickFile(_modelBox, "GGUF 모델 (*.gguf)|*.gguf|모든 파일 (*.*)|*.*");
 
-        controlPanel.Controls.Add(new Label { Text = "서버 EXE", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 0);
+        controlPanel.Controls.Add(new Label { Text = "서버 EXE", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill, BackColor = bgColor, ForeColor = fgColor }, 0, 0);
         controlPanel.Controls.Add(_exeBox, 1, 0);
         controlPanel.Controls.Add(exeBrowse, 2, 0);
 
-        controlPanel.Controls.Add(new Label { Text = "모델", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 1);
+        controlPanel.Controls.Add(new Label { Text = "모델", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill, BackColor = bgColor, ForeColor = fgColor }, 0, 1);
         controlPanel.Controls.Add(_modelBox, 1, 1);
         controlPanel.Controls.Add(modelBrowse, 2, 1);
 
-        controlPanel.Controls.Add(new Label { Text = "포트", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill }, 0, 2);
+        controlPanel.Controls.Add(new Label { Text = "포트", TextAlign = ContentAlignment.MiddleLeft, Dock = DockStyle.Fill, BackColor = bgColor, ForeColor = fgColor }, 0, 2);
         controlPanel.Controls.Add(_portBox, 1, 2);
 
         // 버튼 줄
-        var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight };
-        _startBtn = new Button { Text = "서버 시작", Width = 110, Height = 30 };
-        _stopBtn = new Button { Text = "서버 정지", Width = 110, Height = 30, Enabled = false };
-        _browserBtn = new Button { Text = "브라우저로 열기", Width = 130, Height = 30, Enabled = false };
-        _statusLabel = new Label { Text = "대기 중", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(12, 8, 0, 0), ForeColor = Color.DimGray };
+        var btnPanel = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, FlowDirection = FlowDirection.LeftToRight, BackColor = bgColor };
+        _startBtn = new Button { Text = "서버 시작", Width = 110, Height = 30, BackColor = Color.FromArgb(70, 120, 70), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        _stopBtn = new Button { Text = "서버 정지", Width = 110, Height = 30, Enabled = false, BackColor = Color.FromArgb(120, 70, 70), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        _browserBtn = new Button { Text = "브라우저로 열기", Width = 130, Height = 30, Enabled = false, BackColor = Color.FromArgb(70, 100, 140), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        var openCodeBtn = new Button { Text = "OpenCode 열기", Width = 130, Height = 30, BackColor = Color.FromArgb(100, 100, 140), ForeColor = Color.White, FlatStyle = FlatStyle.Flat };
+        _statusLabel = new Label { Text = "대기 중", AutoSize = true, TextAlign = ContentAlignment.MiddleLeft, Margin = new Padding(12, 8, 0, 0), ForeColor = Color.FromArgb(180, 180, 180), BackColor = bgColor };
         _startBtn.Click += async (_, _) => await StartServerAsync();
         _stopBtn.Click += (_, _) => StopServer();
         _browserBtn.Click += (_, _) => OpenInBrowser();
+        openCodeBtn.Click += (_, _) => OpenOpenCode();
         btnPanel.Controls.Add(_startBtn);
         btnPanel.Controls.Add(_stopBtn);
         btnPanel.Controls.Add(_browserBtn);
+        btnPanel.Controls.Add(openCodeBtn);
         btnPanel.Controls.Add(_statusLabel);
         controlPanel.Controls.Add(btnPanel, 0, 3);
         controlPanel.SetColumnSpan(btnPanel, 4);
@@ -97,21 +111,21 @@ public sealed class MainForm : Form
         controlTab.Controls.Add(controlPanel);
 
         // 탭 2: 로그
-        var logTab = new TabPage { Text = "로그", Padding = new Padding(10) };
+        var logTab = new TabPage { Text = "로그", Padding = new Padding(10), BackColor = bgColor, ForeColor = fgColor };
         _logBox = new TextBox
         {
             Dock = DockStyle.Fill,
             Multiline = true,
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
-            BackColor = Color.FromArgb(30, 30, 30),
-            ForeColor = Color.Gainsboro,
+            BackColor = Color.FromArgb(40, 40, 40),
+            ForeColor = Color.FromArgb(200, 200, 200),
             Font = new Font("Consolas", 9f),
         };
         logTab.Controls.Add(_logBox);
 
         // 탭 3: 브라우저
-        var browserTab = new TabPage { Text = "브라우저", Padding = new Padding(0) };
+        var browserTab = new TabPage { Text = "브라우저", Padding = new Padding(0), BackColor = bgColor };
         _webView = new WebView2 { Dock = DockStyle.Fill };
         browserTab.Controls.Add(_webView);
 
@@ -251,6 +265,24 @@ public sealed class MainForm : Form
         catch (Exception ex)
         {
             Warn($"브라우저 열기 실패: {ex.Message}");
+        }
+    }
+
+    private void OpenOpenCode()
+    {
+        try
+        {
+            var projectDir = AppContext.BaseDirectory;
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "opencode",
+                Arguments = $"\"{projectDir}\"",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Warn($"OpenCode 열기 실패: {ex.Message}\n\nOpenCode가 설치되어 있는지 확인하세요.");
         }
     }
 
